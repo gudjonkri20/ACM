@@ -1,0 +1,452 @@
+---
+title: "Assignment1"
+output: html_document
+date: "2023-05-09"
+---
+
+Import libraries
+
+```{r}
+library(tidyverse)
+library(reshape2)
+library(purrr)
+library(dplyr)
+library(ggplot2)
+```
+
+**Create agents**
+
+
+1. Random agent
+2. Alternating agent
+3. Win-shift-lose-stay agent
+
+**1. Random agent**
+
+```{r}
+RandomAgent_f <- function(rate){
+  choice <- rbinom(1, 1, rate)
+  return(choice)
+}
+
+```
+
+
+**2. Alternating agent**
+
+```{r}
+#Defining agent function
+AlternatingAgent_f <- function(prevChoice) {
+  if (prevChoice == 1) {      #If prevChoice = 1 -> 1 - prevChoice
+    choice = 1 - prevChoice
+  }
+  else if (prevChoice == 0) { #If prevChoice = 0 -> 1 + prevChoice
+    choice = 1 + prevChoice
+  }
+  return(choice)
+}
+```
+
+
+
+**3. Win-shift-lose-stay agent with bias**
+
+```{r}
+WSLSAgentBias_f <- function(prevChoice, Feedback, bias) {
+  if (Feedback == 0) {      # If feedback = 0 (loss), stay
+    choice = prevChoice
+  }
+  else if (Feedback == 1) { # If feedback = 1 (win), agent has a certain bias to shift, stay otherwise
+    if (runif(1) < bias) {
+      choice = 1 - prevChoice  # Shift
+    } else {
+      choice = prevChoice  # Stay
+    }
+  }
+  return(choice)
+}
+```
+
+
+
+**1. Alternating agent vs Random agent**
+
+```{r}
+
+rate = 0.5
+
+# Define number of trials
+trials = 120
+
+# Define empty vectors for agents
+Self <- rep(NA, trials)   # Alternating agent
+Other <- rep(NA, trials)  # Random agent
+
+# Define random first choice for Alternating agent
+Self[1] <- RandomAgent_f(rate)
+
+# Run simulation
+for (t in seq(trials)){Other[t] <- RandomAgent_f(rate)}
+for (i in 2:trials){
+    Self[i] <- AlternatingAgent_f(Self[i-1])
+}
+
+# Visualizing 
+# The choices
+df <- tibble(Self, Other, trial = seq(trials), Feedback = as.numeric(Self==Other))
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, Self)) + geom_line(color="blue", aes(trial, Other))
+
+# The performance
+df <- df %>% mutate(
+cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback), cumulativerateOther = cumsum(1-Feedback) / seq_along(Feedback) )
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, cumulativerateSelf)) + geom_line(color="blue", aes(trial, cumulativerateOther))
+
+```
+
+**2. Win-Shift-Lose-Stay with bias vs Random agent**
+
+```{r}
+# Define rate
+rate <- 0.5
+
+# Define the probability of shifting after a win
+bias <- 0.7
+
+# Define number of trials
+trials = 120
+
+# Define empty vectors for agents
+Self <- rep(NA, trials)   #Win-shift-lose-stay agent
+Other <- rep(NA, trials)  #Random agent
+
+# Define random first choice for agents
+Self[1] <- RandomAgent_f(rate)
+Other[1] <- RandomAgent_f(rate)
+
+# Run simulation
+for (i in 2:trials) {
+  if (Self[i-1] == Other[i-1]) {
+    Feedback = 1   # Win
+  } else {
+    Feedback = 0   # Loss
+  }
+  Self[i] <- WSLSAgentBias_f(Self[i-1], Feedback, bias)
+  Other[i] <- RandomAgent_f(rate)
+}
+
+#Visualizing 
+#The choices
+df <- tibble(Self, Other, trial = seq(trials), Feedback = as.numeric(Self==Other))
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, Self)) + geom_line(color="blue", aes(trial, Other))
+
+#The performance
+df <- df %>% mutate(
+cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback), cumulativerateOther = cumsum(1-Feedback) / seq_along(Feedback) )
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, cumulativerateSelf)) + geom_line(color="blue", aes(trial, cumulativerateOther))
+
+```
+
+**3. Win-Shift-Lose-Stay with bias vs Alternating agent**
+
+```{r}
+# Define rate
+rate <- 0.5
+
+# Define the probability of shifting after a win
+bias <- 0.7 
+
+# Define number of trials
+trials = 120
+
+#Define empty vectors for agents
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+#Define random first choice for agents
+Self[1] <- RandomAgent_f(rate)
+Other[1] <- RandomAgent_f(rate)
+
+#Run simulation
+for (i in 2:trials){
+  if (Self[i-1] == Other[i-1]){
+    Feedback = 1   #Win
+  } else {
+    Feedback = 0   #Loss
+  }
+  Self[i] <- WSLSAgentBias_f(Self[i-1], Feedback, bias)
+  Other[i] <- AlternatingAgent_f(Other[i-1])
+}
+
+
+#Visualizing 
+#The choices
+df <- tibble(Self, Other, trial = seq(trials), Feedback = as.numeric(Self==Other))
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, Self)) + geom_line(color="blue", aes(trial, Other))
+
+#The performance
+df <- df %>% mutate(
+cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback), cumulativerateOther = cumsum(1-Feedback) / seq_along(Feedback) )
+ggplot(df) + theme_classic() + geom_line(color="red", aes(trial, cumulativerateSelf)) + geom_line(color="blue", aes(trial, cumulativerateOther))
+```
+
+
+
+
+**1. Alternating agent vs random agent for 100 dyads**
+
+```{r}
+# Define number of trials and dyads
+trials <- 120
+dyads <- 100
+rate <- 0.5
+
+# Initialize a list to store the results of each dyad
+results <- vector("list", dyads)
+
+# Run simulation for each dyad
+for (d in 1:dyads) {
+  # Define empty vectors for agents
+  Self <- rep(NA, trials)   # Alternating agent
+  Other <- rep(NA, trials)  # Random agent
+
+  # Define random first choice for agent
+  Self[1] <- RandomAgent_f(rate)
+
+  # Run simulation
+  for (t in seq(trials)) {Other[t] <- RandomAgent_f(rate)}
+  for (i in 2:trials) {
+    if (Self[i-1] == Other[i-1]) {
+      Self[i] <- AlternatingAgent_f(1)
+    } else {
+      Self[i] <- AlternatingAgent_f(0)
+    }
+  }
+  
+  # Store the results for this dyad in the list
+  results[[d]] <- list(Self = Self, Other = Other)
+}
+
+# Convert results to a data frame
+df <- purrr::map2_df(results, seq_along(results), ~{
+  tibble(
+    trial = seq_along(.x$Self),
+    Self = .x$Self,
+    Other = .x$Other,
+    Feedback = as.numeric(.x$Self == .x$Other)
+  ) %>% mutate(
+    cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback),
+    cumulativerateOther = cumsum(1 - Feedback) / seq_along(Feedback),
+    dyad = paste("Dyad", .y)  # add a column for the dyad number
+  )
+})
+
+# Compute the mean cumulative success rates
+mean_df <- df %>%
+  group_by(trial) %>%
+  summarise(
+    mean_cumulativerateSelf = mean(cumulativerateSelf),
+    mean_cumulativerateOther = mean(cumulativerateOther)
+  )
+
+# Filter to the final trial for each dyad
+final_trial_df <- df %>%
+  group_by(dyad) %>%
+  filter(trial == max(trial))
+
+# Compute the mean of the final cumulative success rates
+mean_final_cumulativerateSelf <- mean(final_trial_df$cumulativerateSelf)
+mean_final_cumulativerateOther <- mean(final_trial_df$cumulativerateOther)
+
+# Print the results
+print(paste("Mean final cumulative success rate for Self: ", mean_final_cumulativerateSelf))
+print(paste("Mean final cumulative success rate for Other: ", mean_final_cumulativerateOther))
+
+
+# Plot the cumulative rates for each dyad in a single plot
+ggplot(df, aes(trial)) + 
+  geom_line(aes(y = cumulativerateSelf, color = dyad)) + 
+  geom_line(aes(y = cumulativerateOther, color = dyad)) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateSelf), color = "red", size = 1.5) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateOther), color = "blue", size = 1.5) +
+  theme_classic() +
+  ggtitle("Alternating agent vs random agent") +
+  theme(legend.position = "none")  # remove the legend for clarity
+
+```
+
+
+**2. Win-Shift-Lose-Stay agent with bias vs Random agent for 100 dyads**
+
+
+```{r}
+# Define number of trials and dyads
+trials <- 120
+dyads <- 100
+rate <- 0.5
+bias <- 0.7
+
+# Initialize a list to store the results of each dyad
+results <- vector("list", dyads)
+
+# Run simulation for each dyad
+for (d in 1:dyads) {
+  # Define empty vectors for agents
+  Self <- rep(NA, trials)   # Win-shift-lose-stay agent
+  Other <- rep(NA, trials)  # Random agent
+
+  # Define random first choice for agent
+  Self[1] <- RandomAgent_f(rate)
+
+  # Run simulation
+  for (t in seq(trials)){Other[t] <- RandomAgent_f(rate)}
+  for (i in 2:trials) {
+  if (Self[i-1] == Other[i-1]) {
+    Feedback = 1   # Win
+  } else {
+    Feedback = 0   # Loss
+  }
+  Self[i] <- WSLSAgentBias_f(Self[i-1], Feedback, bias)
+  Other[i] <- RandomAgent_f(rate)
+}
+  
+  # Store the results for this dyad in the list
+  results[[d]] <- list(Self = Self, Other = Other)
+}
+
+# Convert results to a data frame
+df <- purrr::map2_df(results, seq_along(results), ~{
+  tibble(
+    trial = seq_along(.x$Self),
+    Self = .x$Self,
+    Other = .x$Other,
+    Feedback = as.numeric(.x$Self == .x$Other)
+  ) %>% mutate(
+    cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback),
+    cumulativerateOther = cumsum(1 - Feedback) / seq_along(Feedback),
+    dyad = paste("Dyad", .y)  # add a column for the dyad number
+  )
+})
+
+# Compute the mean cumulative success rates
+mean_df <- df %>%
+  group_by(trial) %>%
+  summarise(
+    mean_cumulativerateSelf = mean(cumulativerateSelf),
+    mean_cumulativerateOther = mean(cumulativerateOther)
+  )
+
+# Filter to the final trial for each dyad
+final_trial_df <- df %>%
+  group_by(dyad) %>%
+  filter(trial == max(trial))
+
+# Compute the mean of the final cumulative success rates
+mean_final_cumulativerateSelf <- mean(final_trial_df$cumulativerateSelf)
+mean_final_cumulativerateOther <- mean(final_trial_df$cumulativerateOther)
+
+# Print the results
+print(paste("Mean final cumulative success rate for Self: ", mean_final_cumulativerateSelf))
+print(paste("Mean final cumulative success rate for Other: ", mean_final_cumulativerateOther))
+
+
+# Plot the cumulative rates for each dyad in a single plot
+ggplot(df, aes(trial)) + 
+  geom_line(aes(y = cumulativerateSelf, color = dyad)) + 
+  geom_line(aes(y = cumulativerateOther, color = dyad)) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateSelf), color = "red", size = 1.5) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateOther), color = "blue", size = 1.5) +
+  theme_classic() +
+  ggtitle("Win-shift-lose-stay agent vs random agent") +
+  theme(legend.position = "none")  # remove the legend for clarity
+
+
+```
+
+
+**3. Win-Shift-Lose-Stay agent with bias vs Alternating agent for 100 dyads**
+
+
+```{r}
+# Define number of trials and dyads
+trials <- 120
+dyads <- 100
+rate <- 0.5
+bias <- 0.7
+
+# Initialize a list to store the results of each dyad
+results <- vector("list", dyads)
+
+# Run simulation for each dyad
+for (d in 1:dyads) {
+  # Define empty vectors for agents
+  Self <- rep(NA, trials)   # Win-shift-lose-stay agent
+  Other <- rep(NA, trials)  # Alternating agent
+
+  #Define random first choice for agents
+  Self[1] <- RandomAgent_f(rate)
+  Other[1] <- RandomAgent_f(rate)
+
+  #Run simulation
+  for (i in 2:trials){
+    if (Self[i-1] == Other[i-1]){
+      Feedback = 1   #Win
+    } else {
+      Feedback = 0   #Loss
+    }
+    Self[i] <- WSLSAgentBias_f(Self[i-1], Feedback, bias)
+    Other[i] <- AlternatingAgent_f(Other[i-1])
+  }
+  
+  # Store the results for this dyad in the list
+  results[[d]] <- list(Self = Self, Other = Other)
+}
+
+# Convert results to a data frame
+df <- purrr::map2_df(results, seq_along(results), ~{
+  tibble(
+    trial = seq_along(.x$Self),
+    Self = .x$Self,
+    Other = .x$Other,
+    Feedback = as.numeric(.x$Self == .x$Other)
+  ) %>% mutate(
+    cumulativerateSelf = cumsum(Feedback) / seq_along(Feedback),
+    cumulativerateOther = cumsum(1 - Feedback) / seq_along(Feedback),
+    dyad = paste("Dyad", .y)  # add a column for the dyad number
+  )
+})
+
+# Compute the mean cumulative success rates
+mean_df <- df %>%
+  group_by(trial) %>%
+  summarise(
+    mean_cumulativerateSelf = mean(cumulativerateSelf),
+    mean_cumulativerateOther = mean(cumulativerateOther)
+  )
+
+# Filter to the final trial for each dyad
+final_trial_df <- df %>%
+  group_by(dyad) %>%
+  filter(trial == max(trial))
+
+# Compute the mean of the final cumulative success rates
+mean_final_cumulativerateSelf <- mean(final_trial_df$cumulativerateSelf)
+mean_final_cumulativerateOther <- mean(final_trial_df$cumulativerateOther)
+
+# Print the results
+print(paste("Mean final cumulative success rate for Self: ", mean_final_cumulativerateSelf))
+print(paste("Mean final cumulative success rate for Other: ", mean_final_cumulativerateOther))
+
+
+# Plot the cumulative rates for each dyad in a single plot
+ggplot(df, aes(trial)) + 
+  geom_line(aes(y = cumulativerateSelf, color = dyad)) + 
+  geom_line(aes(y = cumulativerateOther, color = dyad)) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateSelf), color = "red", size = 1.5) +
+  geom_line(data = mean_df, aes(y = mean_cumulativerateOther), color = "blue", size = 1.5) +
+  theme_classic() +
+  ggtitle("Win-shift-lose-stay agent vs Alternating agent") +
+  theme(legend.position = "none")  # remove the legend for clarity
+```
+
+
+
